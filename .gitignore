@@ -1,0 +1,8 @@
+__pycache__
+/draft
+/model
+/data
+/wandb
+/save
+/data/the-vault-function/*
+/nohup.out
