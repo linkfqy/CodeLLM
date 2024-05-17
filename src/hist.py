@@ -12,23 +12,26 @@ def count_token(tokenizer, seq):
 
 
 def ease_hist():
+    plt.cla()
     ease_arr = []
     with open("/fqyVol/CodeScope/data/program_synthesis_data.jsonl") as f:
         while line := f.readline():
             sample = json.loads(line)
             ease = flesch_reading_ease(sample["description"])
-            if ease < 60:
-                print(sample['id'])
-                print(sample["description"])
-                print('-'*20)
+            # if ease < 60:
+            #     print(sample['id'])
+            #     print(sample["description"])
+            #     print('-'*20)
             ease_arr.append(ease)
     plt.hist(ease_arr, bins=50)
+    plt.tight_layout()
     plt.savefig("image/ease_hist.png", dpi=500)
     print(max(ease_arr), min(ease_arr))
 
 
 def sol_hist():
-    dataset = load_dataset("deepmind/code_contests", split="train")
+    plt.cla()
+    dataset = load_dataset("data/code_contests", split="train")
     print(f"problem num: {len(dataset)}")
     sol_arr = []
     cnt = 0
@@ -37,12 +40,32 @@ def sol_hist():
         cnt += min(5, sol)
         sol_arr.append(sol)
     print(cnt)
-    plt.hist(sol_arr, bins=50, range=(0, 2000))
+    plt.hist(sol_arr, bins=50, log=True)
+    plt.tight_layout()
     plt.savefig("image/sol_hist.png", dpi=500)
     print(max(sol_arr), min(sol_arr))
 
+def diff_hist():
+    plt.cla()
+    dataset = load_dataset("data/code_contests", split="train")
+    print(f"problem num: {len(dataset)}")
+    diff_arr = []
+    cnt = 0
+    for data in dataset:
+        sol = len(data['solutions']['solution'])
+        cnt += min(5, sol)
+        if data['source']==2:
+            diff_arr.append(data['cf_rating'])
+    print(cnt)
+    plt.hist(diff_arr,range=(800,3500), bins=27)
+    plt.tight_layout()
+    plt.savefig("image/diff_hist.png", dpi=500)
+    print(max(diff_arr), min(diff_arr))
+    print(sum(diff for diff in diff_arr if diff<=2800)/sum(diff_arr))
+
 
 def lang_pie():
+    plt.cla()
     dataset = load_dataset("data/code_contests", split="train")
     lang_arr = [0]*5
     for data in dataset:
@@ -51,11 +74,14 @@ def lang_pie():
             lang_arr[lang] += 1
     print(f"sol num:{sum(lang_arr)}")
     plt.pie(lang_arr, labels=["UNKNOWN_LANGUAGE", "PYTHON2", "CPP", "PYTHON3", "JAVA"])
+    plt.tight_layout()
     plt.savefig("image/lang_pie.png", dpi=500)
     print(lang_arr)
+    print([x/sum(lang_arr) for x in lang_arr])
 
 
 def token_hist():
+    plt.cla()
     # len:token=2.7:1
     tokenizer = AutoTokenizer.from_pretrained(
         "model/CodeLlama-7b-Instruct-hf",
@@ -76,6 +102,7 @@ def token_hist():
 
 
 def loss_plot(trainer_state):
+    plt.cla()
     with open(trainer_state, 'r') as f:
         state = json.load(f)
     epoch, loss = [],[]
@@ -88,4 +115,9 @@ def loss_plot(trainer_state):
 
 
 if __name__ == '__main__':
-    loss_plot("save/codev4/trainer_state.json")
+    # loss_plot("save/codev5/trainer_state.json")
+    # sol_hist()
+    # token_hist()
+    diff_hist()
+    # ease_hist()
+    # lang_pie()

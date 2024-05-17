@@ -26,9 +26,12 @@ PROMPT_DICT = {
         "Write a response that appropriately completes the request.\n\n"
         "### Instruction:\n{instruction}\n\n### Response:\n"
     ),
-    "prompt_code": (
-        "[INST]{instruction}[/INST]"
-    )
+    "native": (
+        "[INST] <<SYS>> Below is an instruction that describes a task. "
+        "Write a response that appropriately completes the request. <</SYS>> "
+        "{instruction} [/INST]"
+    ),
+    "raw": "{instruction}"
 }
 
 
@@ -53,6 +56,7 @@ class TrainingArguments(transformers.TrainingArguments):
         metadata={
             "help": "Maximum sequence length. Sequences will be right padded (and possibly truncated)."},
     )
+    prompt_type: str = field(default=None)
 
 
 def safe_save_model_for_hf_trainer(trainer: transformers.Trainer, output_dir: str):
@@ -153,8 +157,10 @@ class DataCollatorForSupervisedDataset(object):
         )
 
 
-def train_tokenize_function(examples, tokenizer):
+def train_tokenize_function(examples, tokenizer, prompt_type):
     prompt_input, prompt_no_input = PROMPT_DICT["prompt_input"], PROMPT_DICT["prompt_no_input"]
+    if prompt_type:
+        prompt_no_input = PROMPT_DICT[prompt_type]
     if 'input' in examples:
         sources = [
             prompt_input.format_map(dict(instruction=instruction, input=input)) if input != ""
@@ -215,8 +221,8 @@ def train():
         remove_columns=raw_train_datasets.column_names,
         load_from_cache_file=True,  # not args.overwrite_cache
         desc="Running tokenizer on train dataset",
-        fn_kwargs={"tokenizer": tokenizer}
-    )
+        fn_kwargs={"tokenizer": tokenizer, "prompt_type": training_args.prompt_type}
+    ).shuffle()
 
     if data_args.valid_data_path:
         raw_valid_datasets = load_dataset(
@@ -229,7 +235,7 @@ def train():
             remove_columns=raw_valid_datasets.column_names,
             load_from_cache_file=True,  # not args.overwrite_cache
             desc="Running tokenizer on valid dataset",
-            fn_kwargs={"tokenizer": tokenizer}
+            fn_kwargs={"tokenizer": tokenizer, "prompt_type": training_args.prompt_type}
         )
 
     if training_args.local_rank == 0:
@@ -242,8 +248,11 @@ def train():
             print(tokenizer.convert_ids_to_tokens(train_dataset[index]['input_ids']))
 
     data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
-    data_module = dict(train_dataset=train_dataset,
-                       eval_dataset=valid_dataset, data_collator=data_collator)
+    data_module = dict(
+        train_dataset=train_dataset,
+        eval_dataset=valid_dataset if data_args.valid_data_path else None,
+        data_collator=data_collator,
+    )
 
     # Tell Trainer not to attempt DataParallel
     model.is_parallelizable = True
